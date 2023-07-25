@@ -1,3 +1,6 @@
+#ifndef COS_H
+#define COS_H
+
 #include <sys/syscall.h> 
 
 #define SYSCALL_SET_LORD        452
@@ -20,3 +23,5 @@ int init_shoot() {
 int shoot_task(size_t cpusetsize, cpu_set_t *mask) {
 	return syscall(SYSCALL_SHOOT_TASK, cpusetsize, mask); 
 }
+
+#endif // !COS_H

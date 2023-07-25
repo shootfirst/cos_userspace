@@ -21,11 +21,12 @@ public:
             LOG(ERROR) << "mmap message queue fail!";
             exit(1);
         }
+		LOG(INFO) << "create message queue success!";
     }
 
-    message consume_msg() {
+    cos_msg consume_msg() {
         if (empty())   return {}; // queue empty
-        message ret = mq_->data[mq_->tail % _MQ_DATA_SIZE];
+        cos_msg ret = mq_->data[mq_->tail % _MQ_DATA_SIZE];
         smp_mb();
         mq_->tail++;
         smp_mb();

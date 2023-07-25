@@ -11,9 +11,12 @@ public:
 			LOG(ERROR) << "set lord fail!";
             exit(1);
 		}
+		LOG(INFO) << "set lord success!";
 
 		lord_cpu_ = lord_cpu;
 		cpu_num_ = sysconf(_SC_NPROCESSORS_CONF);
+		LOG(INFO) << "cpu nums: " << cpu_num_;
+
     	mq_ = new MessageQueue;
     	sa_ = new ShootArea;
 	}
@@ -22,9 +25,9 @@ public:
     void consume_message() {
         cos_msg msg;
         while (!mq_->empty()) {
-            msg = mq_->consume();
+            msg = mq_->consume_msg();
 
-            switch (msg->type) {
+            switch (msg.type) {
 	        case MSG_TASK_RUNNABLE: 
 	        	consume_msg_task_runnable(msg);
 	        	break;
@@ -44,7 +47,7 @@ public:
 				consume_msg_task_new_blocked(msg);
 	        	break;
 	        default:
-				LOG(WARNING) << "unknown cos_msg type  " << msg->type << "!";
+				LOG(WARNING) << "unknown cos_msg type  " << msg.type << "!";
 	        	break;
 	        }
         }
@@ -54,7 +57,7 @@ public:
 
     virtual void schedule() = 0;
 	
-private:
+protected:
 
     virtual void consume_msg_task_runnable(cos_msg msg) = 0;
     virtual void consume_msg_task_blocked(cos_msg msg) = 0;

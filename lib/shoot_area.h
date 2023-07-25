@@ -1,5 +1,5 @@
 #include <vector>
-#include <pair>
+#include <utility>
 
 #include "../kernel/shoot_area.h"
 #include "cos.h"
@@ -19,6 +19,7 @@ public:
             LOG(ERROR) << "mmap shoot area fail!";
             exit(1);
         }
+		LOG(INFO) << "create shoot area success!";
     }
 
     void commit_shoot_message(std::vector<std::pair<int, cos_shoot_arg>> args) {

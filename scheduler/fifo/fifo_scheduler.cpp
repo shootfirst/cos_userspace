@@ -2,12 +2,19 @@
 
 #include "fifo_lord.h"
 
-int main(int argc, char* argv[]) {
+void init_glog() {
     // Initialize Google’s logging library.
-    google::InitGoogleLogging(argv[0]);
+    google::InitGoogleLogging("fifo scheduler");
+    FLAGS_logtostderr = true;
+    FLAGS_colorlogtostderr = true;
+}
 
+int main(int argc, char* argv[]) {
+    init_glog();
+    
     FifoLord *lord = new FifoLord(4);
 
+    LOG(INFO) << "init cos success!";
     while (true) {
         lord->consume_message();
         lord->schedule();
