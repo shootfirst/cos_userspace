@@ -2,21 +2,18 @@ cmake_minimum_required(VERSION 3.22.1)  # cmake lowest version requirement
 
 project (cos_userspace) # project name
 
-set(CMAKE_CXX_STANDARD 14)  # GoogleTest requires at least C++14
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Third-parties
 include(FetchContent)
 FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+  glog
+  URL https://github.com/google/glog/archive/refs/tags/v0.6.0.tar.gz
 )
-FetchContent_MakeAvailable(googletest)
-
-find_package (glog 0.6.0 REQUIRED)
+FetchContent_MakeAvailable(glog)
 
 # includes
 include_directories(lib kernel) # global include directories
+
+add_executable(fifo_scheduler scheduler/fifo/fifo_scheduler.cpp scheduler/fifo/fifo_lord.h)
+target_link_libraries(fifo_scheduler glog::glog)
 
 # cmake flags
 # set(CMAKE_BUILD_TYPE "Debug")
