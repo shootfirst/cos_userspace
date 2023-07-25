@@ -74,7 +74,7 @@ int main() {
 	auto sa = static_cast<cos_shoot_area*>(
       mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd1, 0));
 	  perror(NULL);
-	if (mq == MAP_FAILED) {  
+	if (sa == MAP_FAILED) {  
     	printf("mmap failed1\n");
 		return 0;
     }
