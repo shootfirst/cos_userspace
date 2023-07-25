@@ -33,15 +33,15 @@ public:
 	        	break;
 	        case MSG_TASK_NEW:
 	        	consume_msg_task_new(msg);
-				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_NEW << "!";
 	        	break;
 	        case MSG_TASK_DEAD:
 	        	consume_msg_task_dead(msg);
-				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_DEAD << "!";
 	        	break;
 	        case MSG_TASK_PREEMPT:
 	        	consume_msg_task_preempt(msg);
-				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_PREEMPT << "!";
+	        	break;
+			case MSG_TASK_NEW_BLOCKED:
+				consume_msg_task_new_blocked(msg);
 	        	break;
 	        default:
 				LOG(WARNING) << "unknown cos_msg type  " << msg->type << "!";
@@ -59,6 +59,7 @@ private:
     virtual void consume_msg_task_runnable(cos_msg msg) = 0;
     virtual void consume_msg_task_blocked(cos_msg msg) = 0;
     virtual void consume_msg_task_new(cos_msg msg) = 0;
+    virtual void consume_msg_task_new_blocked(cos_msg msg) = 0;
     virtual void consume_msg_task_dead(cos_msg msg) = 0;
     virtual void consume_msg_task_preempt(cos_msg msg) = 0;
 
