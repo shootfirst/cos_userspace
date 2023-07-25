@@ -22,8 +22,9 @@ public:
 		LOG(INFO) << "create shoot area success!";
     }
 
-    void commit_shoot_message(std::vector<std::pair<int, cos_shoot_arg>> args) {
+    void commit_shoot_message(std::vector<std::pair<int, cos_shoot_arg>> &args) {
         for (auto cpu2arg : args) {
+            // printf("cpu %d pid %d\n", cpu2arg.first, cpu2arg.second.pid);
             sa_->area[cpu2arg.first] = cpu2arg.second;
         }
     }

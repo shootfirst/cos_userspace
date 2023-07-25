@@ -98,7 +98,10 @@ int main() {
 
 	shoot_task(sizeof(mask), &mask);
 	// shoot_task(pid);
-	sleep(1);
-	shoot_task(sizeof(mask), &mask);
+	// shoot_task(sizeof(mask), &mask);
 	printf("success shoot !%d\n", sched_getscheduler(tid));
+	sleep(2);
+	for (int i = 0; i < 100; i++) {
+		printf("pid %d type %d\n", mq->data[i].pid, mq->data[i].type);
+	}
 }

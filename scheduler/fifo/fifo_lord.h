@@ -65,10 +65,10 @@ public:
         cpu_set_t assigned_mask;
 	    CPU_ZERO(&assigned_mask);
         for (int cpu = 0; cpu < cpu_num_; cpu ++) {
-            if (cpu == lord_cpu_)    continue ;
+            if (cpu == lord_cpu_)    continue;
             // no preempt
             int tid = fifo_rq_.peek();
-            if (tid == 0)   return ; // there is no task in the runqueue
+            if (tid == 0)   break; 
 
             if (!alive_tasks_.count(tid)) {
                 LOG(ERROR) << "task is picked before task new or after task dead, kernel BUGGGGGG!";
@@ -96,6 +96,8 @@ public:
 private:
 
     virtual void consume_msg_task_runnable(cos_msg msg) {
+        // LOG(INFO) << "task " << msg.pid << " enqueue.";
+
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             return ;
@@ -116,6 +118,8 @@ private:
     }
 
     virtual void consume_msg_task_blocked(cos_msg msg) {
+        // LOG(INFO) << "task " << msg.pid << " dequeue.";
+
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             return ;
@@ -136,6 +140,8 @@ private:
     }
 
     virtual void consume_msg_task_new(cos_msg msg) {
+        LOG(INFO) << "task " << msg.pid << " new.";
+
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
             LOG(ERROR) << "same new_thread message, kernel BUGGGGGG!";
@@ -150,6 +156,8 @@ private:
     }
 
     virtual void consume_msg_task_new_blocked(cos_msg msg) {
+        LOG(INFO) << "task " << msg.pid << " new blocked.";
+
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
             LOG(ERROR) << "same new_thread message, kernel BUGGGGGG!";
@@ -161,6 +169,8 @@ private:
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
+        LOG(INFO) << "task " << msg.pid << " dead.";
+
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task dead before task new, kernel BUGGGGGG!";
@@ -185,6 +195,8 @@ private:
     }
 
     virtual void consume_msg_task_preempt(cos_msg msg) {
+        // LOG(INFO) << "task " << msg.pid << " preempt.";
+        
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
