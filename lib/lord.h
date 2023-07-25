@@ -7,14 +7,22 @@ class Lord {
 public: 
 
 	Lord(int lord_cpu) {
-		
+		if (set_lord(lord_cpu)) {
+			LOG(ERROR) << "set lord fail!";
+            exit(1);
+		}
+
+		lord_cpu_ = lord_cpu;
+		cpu_num_ = sysconf(_SC_NPROCESSORS_CONF);
+    	mq_ = new MessageQueue;
+    	sa_ = new ShootArea;
 	}
 
 
-    void consume_message(cos_msg msg) {
+    void consume_message() {
         cos_msg msg;
         while (!mq_->empty()) {
-            msg = mq->consume();
+            msg = mq_->consume();
 
             switch (msg->type) {
 	        case MSG_TASK_RUNNABLE: 
@@ -25,18 +33,18 @@ public:
 	        	break;
 	        case MSG_TASK_NEW:
 	        	consume_msg_task_new(msg);
-	        	printf("do not support cos msg %d\n", MSG_TASK_NEW);
+				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_NEW << "!";
 	        	break;
 	        case MSG_TASK_DEAD:
 	        	consume_msg_task_dead(msg);
-	        	printf("do not support cos msg %d\n", MSG_TASK_DEAD);
+				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_DEAD << "!";
 	        	break;
 	        case MSG_TASK_PREEMPT:
 	        	consume_msg_task_preempt(msg);
-	        	printf("do not support cos msg %d\n", MSG_TASK_PREEMPT);
+				LOG(WARNING) << "do not support cos msg  " << MSG_TASK_PREEMPT << "!";
 	        	break;
 	        default:
-	        	printf("unknown cos_msg type %d!\n", msg->type);
+				LOG(WARNING) << "unknown cos_msg type  " << msg->type << "!";
 	        	break;
 	        }
         }
@@ -54,8 +62,8 @@ private:
 
     virtual void schedule() = 0;
 
-    int lord_cpu_;
-    cpu_set_t enclave_cpu_mask_;
-    MessageQueue *mq_;
-    ShootArea *sa_;
+    int lord_cpu_ = -1;
+    int cpu_num_ = -1;
+    MessageQueue *mq_ = nullptr;
+    ShootArea *sa_ = nullptr;
 };

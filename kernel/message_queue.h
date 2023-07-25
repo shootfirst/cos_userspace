@@ -7,7 +7,8 @@ enum {
 	MSG_TASK_PREEMPT,
 };
 
-#define _MQ_SIZE 511
+#define _MQ_MAP_SIZE 4096
+#define _MQ_DATA_SIZE 511
 
 struct cos_msg {
 	u_int32_t pid;
@@ -17,5 +18,5 @@ struct cos_msg {
 struct cos_message_queue {
 	u_int32_t head;
 	u_int32_t tail;
-	struct cos_msg data[_MQ_SIZE];
+	struct cos_msg data[_MQ_DATA_SIZE];
 };
