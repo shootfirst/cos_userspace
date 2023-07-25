@@ -46,6 +46,8 @@ public:
 			case MSG_TASK_NEW_BLOCKED:
 				consume_msg_task_new_blocked(msg);
 	        	break;
+			case MSG_TASK_COS_PREEMPT:
+				consume_msg_task_preempt_cos(msg);
 	        default:
 				LOG(WARNING) << "unknown cos_msg type  " << msg.type << "!";
 	        	break;
@@ -65,6 +67,7 @@ protected:
     virtual void consume_msg_task_new_blocked(cos_msg msg) = 0;
     virtual void consume_msg_task_dead(cos_msg msg) = 0;
     virtual void consume_msg_task_preempt(cos_msg msg) = 0;
+    virtual void consume_msg_task_preempt_cos(cos_msg msg) = 0;
 
     int lord_cpu_ = -1;
     int cpu_num_ = -1;

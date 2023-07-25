@@ -5,7 +5,7 @@
 int main() {
     std::vector<CosThread*> load_thread_vec(0);
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 20; i++) {
         // auto t = CosThread([] {
         //     for (int i = 0; i < 10; i++) {
         //         sleep(1);
@@ -16,8 +16,12 @@ int main() {
         load_thread_vec.push_back(
             new CosThread([] {
                 int tid = gettid();
-                for (int i = 0; i < 2; i++) {
-                    sleep(1);
+                for (int i = 0; i < 500; i++) {
+                    // sleep(1);
+                struct timespec ts;
+                    ts.tv_sec = 0;
+                    ts.tv_nsec = 1000 *100;  // sleep for 100us
+                    nanosleep(&ts, NULL);
                     printf("thread %d %d\n", tid, sched_getscheduler(tid));
                 }
             })
