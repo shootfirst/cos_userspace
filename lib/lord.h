@@ -52,6 +52,8 @@ public:
 		return;
     }
 
+    virtual void schedule() = 0;
+	
 private:
 
     virtual void consume_msg_task_runnable(cos_msg msg) = 0;
@@ -59,8 +61,6 @@ private:
     virtual void consume_msg_task_new(cos_msg msg) = 0;
     virtual void consume_msg_task_dead(cos_msg msg) = 0;
     virtual void consume_msg_task_preempt(cos_msg msg) = 0;
-
-    virtual void schedule() = 0;
 
     int lord_cpu_ = -1;
     int cpu_num_ = -1;
