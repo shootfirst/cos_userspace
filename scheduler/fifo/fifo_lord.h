@@ -8,10 +8,10 @@ enum class FifoRunState {
     Blocked
 };
 
-// struct CpuState {
-//     u_int32_t pid;
-//     bool availible;
-// };
+struct CpuState {
+    u_int32_t pid;
+    bool availible;
+};
 
 struct FifoTask {
     FifoTask (int pid) : pid(pid), state(FifoRunState::Blocked) {}
@@ -58,7 +58,13 @@ private:
 class FifoLord : public Lord {
 
 public:
-    FifoLord(int lord_cpu) : Lord(lord_cpu), fifo_rq_() { }
+    FifoLord(int lord_cpu) : Lord(lord_cpu), fifo_rq_() {
+        cpu_states_ = (CpuState*)malloc(sizeof(CpuState) * cpu_num_);
+        for (int i = 0; i < cpu_num_; i ++) {
+            cpu_states_[i].pid = 0;
+            cpu_states_[i].availible = true;
+        }
+    }
 
     virtual void schedule() {
         std::vector<std::pair<int, cos_shoot_arg>> assigned;
@@ -66,9 +72,12 @@ public:
 	    CPU_ZERO(&assigned_mask);
         for (int cpu = 0; cpu < cpu_num_; cpu ++) {
             if (cpu == lord_cpu_)    continue ;
+            if (cpu_states_[cpu].availible && cpu_states_[cpu].pid != 0) {
+                continue ;
+            } 
             // no preempt
             int tid = fifo_rq_.peek();
-            if (tid == 0)   return ; // there is no task in the runqueue
+            if (tid == 0)   break ; // there is no task in the runqueue
 
             if (!alive_tasks_.count(tid)) {
                 LOG(ERROR) << "task is picked before task new or after task dead, kernel BUGGGGGG!";
@@ -81,14 +90,17 @@ public:
             arg.pid = next->pid;
             arg.info = 0;
             assigned.push_back(std::make_pair(cpu, arg));
+            LOG(WARNING) << "assigend size " << assigned.size();
+            LOG(WARNING) << "shoot " << arg.pid << "  at " << cpu;
             CPU_SET(cpu, &assigned_mask);  
 
             next->state = FifoRunState::OnCpu;
-            // cpu_states_[cpu].pid = next->pid;
-            // cpu_states_[cpu].availible = false;
+            cpu_states_[cpu].pid = next->pid;
+            cpu_states_[cpu].availible = true;
 
             fifo_rq_.dequeue();
         }
+        
         sa_->commit_shoot_message(assigned);
         shoot_task(sizeof(assigned_mask), &assigned_mask);
     }
@@ -158,6 +170,9 @@ private:
 
         auto new_task = new FifoTask(tid);
         alive_tasks_[tid] = new_task;
+
+        cpu_states_[tid].availible = true;
+        cpu_states_[tid].pid = 0;
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
@@ -176,7 +191,8 @@ private:
         if(task->state == FifoRunState::Queued) {
             fifo_rq_.remove_from_rq(tid);
         } else if(task->state == FifoRunState::OnCpu) {
-            // update cpu state
+            cpu_states_[tid].availible = true;
+            cpu_states_[tid].pid = 0;
         }
         
         alive_tasks_.erase(tid);
@@ -184,6 +200,7 @@ private:
         delete task;
     }
 
+    // by cos
     virtual void consume_msg_task_preempt(cos_msg msg) {
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
@@ -202,8 +219,32 @@ private:
             fifo_rq_.enqueue(tid);
             task->state = FifoRunState::Queued;
         }
+        cpu_states_[msg.cpu_id].availible = true;
+    }
+
+    // by cfs
+    virtual void consume_msg_task_preempt(cos_msg msg) {
+        u_int32_t tid = msg.pid;
+        if (!alive_tasks_.count(tid)) {
+            LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
+            exit(1);
+        }
+        auto task = alive_tasks_[tid];
+        if (task == nullptr) {
+            LOG(ERROR) << "task is null in dead!";
+            exit(1);
+        }
+        
+        if(task->state == FifoRunState::Queued) {
+            LOG(WARNING) << "task is preempted with queued state!";
+        } else if(task->state == FifoRunState::OnCpu) {
+            fifo_rq_.enqueue(tid);
+            task->state = FifoRunState::Queued;
+        }
+        cpu_states_[msg.cpu_id].availible = false;
     }
 
     FifoRq fifo_rq_;
     std::unordered_map<u_int32_t, FifoTask*> alive_tasks_;
+    CpuState* cpu_states_;
 };
