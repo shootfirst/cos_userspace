@@ -22,11 +22,23 @@ public:
 		LOG(INFO) << "create shoot area success!";
     }
 
-    void commit_shoot_message(std::vector<std::pair<int, cos_shoot_arg>> &args) {
+    void commit_shoot_message(std::vector<std::pair<int, cos_shoot_arg>> &args, u_int16_t seq) {
         for (auto cpu2arg : args) {
             // printf("cpu %d pid %d\n", cpu2arg.first, cpu2arg.second.pid);
             sa_->area[cpu2arg.first] = cpu2arg.second;
         }
+        sa_->seq = seq;
+    }
+
+    std::vector<std::pair<int, int>> check_shoot_state(int cpu_nums) {
+        std::vector<std::pair<int, int>> fail;
+        for (int i = 0; i < cpu_nums; i ++) {
+            if (sa_->area[i].info == _SA_ERROR) {
+                fail.push_back(std::make_pair(i, sa_->area[i].pid));
+            }
+            sa_->area[i].info = _SA_RIGHT;
+        }
+        return fail;
     }
 
 private:

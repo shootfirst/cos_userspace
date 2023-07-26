@@ -26,6 +26,8 @@ public:
         while (!mq_->empty()) {
             msg = mq_->consume_msg();
 
+			seq_ = msg.seq;
+
             switch (msg.type) {
 	        case MSG_TASK_RUNNABLE: 
 	        	consume_msg_task_runnable(msg);
@@ -72,4 +74,5 @@ protected:
     int lord_cpu_ = -1;
     MessageQueue *mq_ = nullptr;
     ShootArea *sa_ = nullptr;
+	u_int16_t seq_ = 0;
 };

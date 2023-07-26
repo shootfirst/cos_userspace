@@ -74,7 +74,7 @@ private:
 class ShinjukuLord : public Lord {
 
 public:
-    ShinjukuLord(int lord_cpu) : Lord(lord_cpu), Shinjuku_rq_() {
+    ShinjukuLord(int lord_cpu) : Lord(lord_cpu), shinjuku_rq_() {
         cpu_states_.reserve(cpu_num);
         for (int i = 0; i < cpu_num; i ++) {
             cpu_states_[i].type = ThreadType::IDLE;
@@ -84,6 +84,7 @@ public:
 
     virtual void schedule() {
 
+        std::vector<std::pair<int, CpuState>> old_cpu_states;
         std::vector<std::pair<int, cos_shoot_arg>> assigned;
         cpu_set_t assigned_mask;
 	    CPU_ZERO(&assigned_mask);
@@ -128,7 +129,7 @@ public:
 
         while (true) {
 
-            int tid = Shinjuku_rq_.peek();
+            int tid = shinjuku_rq_.peek();
             if (tid == 0) {
                 break;
             }
@@ -163,16 +164,59 @@ public:
             next->cpu_id = cpu;
             next->last_shoot_time = current_time;
 
+            old_cpu_states.push_back(std::make_pair(cpu, cpu_states_[cpu]));
             cpu_states_[cpu].pid = next->pid;
             cpu_states_[cpu].type = ThreadType::COS;
 
-            Shinjuku_rq_.dequeue();
+            shinjuku_rq_.dequeue();
         }
         for (int i = 0; i < assigned.size(); i++) {
             LOG(WARNING) << "shoot " << assigned[i].second.pid << "  at " << assigned[i].first;
         }
-        sa_->commit_shoot_message(assigned);
-        shoot_task(sizeof(assigned_mask), &assigned_mask);
+
+        if (assigned.empty()) {
+            return;
+        }
+        
+        sa_->commit_shoot_message(assigned, seq_);
+        int shoot_err = shoot_task(sizeof(assigned_mask), &assigned_mask);
+
+        if (shoot_err) {
+            LOG(INFO) << "shoot failed!";
+
+            // revert the task states
+            for (auto arg : assigned) {
+                shinjuku_rq_.enqueue(arg.second.pid);
+                ShinjukuTask* task = alive_tasks_[arg.second.pid];
+                task->state = ShinjukuRunState::Queued;
+            }
+
+            // revert the cpu states
+            for (auto cs : old_cpu_states) {
+                cpu_states_[cs.first].pid = cs.second.pid;
+                cpu_states_[cs.first].type = cs.second.type;
+            }
+
+        } else {
+            std::vector<std::pair<int, int>> fail = sa_->check_shoot_state(cpu_num);
+
+            for(auto f : fail) {
+                // revert the task states
+                shinjuku_rq_.enqueue(f.second);
+                ShinjukuTask* task = alive_tasks_[f.second];
+                task->state = ShinjukuRunState::Queued;
+
+                // revert the cpu states
+                for (auto cs : old_cpu_states) {
+                    if (cs.first == f.first) {
+                        cpu_states_[f.first].pid = cs.second.pid;
+                        cpu_states_[f.first].type = cs.second.type;
+                        break;
+                    }
+                }
+            }
+        }
+
 
     }
 
@@ -196,7 +240,7 @@ private:
             return;
         }
 
-        Shinjuku_rq_.enqueue(tid);
+        shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
     }
 
@@ -213,7 +257,7 @@ private:
         }
 
         if (task->state == ShinjukuRunState::Queued) {
-            Shinjuku_rq_.remove_from_rq(tid);
+            shinjuku_rq_.remove_from_rq(tid);
         } else if (task->state == ShinjukuRunState::OnCpu) {
             cpu_states_[task->cpu_id].type = ThreadType::IDLE;
             cpu_states_[task->cpu_id].pid = 0;
@@ -234,7 +278,7 @@ private:
         auto new_task = new ShinjukuTask(tid);
         alive_tasks_[tid] = new_task;
 
-        Shinjuku_rq_.enqueue(tid);
+        shinjuku_rq_.enqueue(tid);
         new_task->state = ShinjukuRunState::Queued;
     }
 
@@ -288,7 +332,7 @@ private:
         }
 
         assert(task->state == ShinjukuRunState::OnCpu);
-        Shinjuku_rq_.enqueue(tid);
+        shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         cpu_states_[task->cpu_id].type = ThreadType::CFS;
         
@@ -316,13 +360,13 @@ private:
             assert(task->state == ShinjukuRunState::OnCpu);
         }
         
-        Shinjuku_rq_.enqueue(tid);
+        shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         assert(cpu_states_[task->cpu_id].type == ThreadType::COS);
 
     }
 
-    ShinjukuRq Shinjuku_rq_;
+    ShinjukuRq shinjuku_rq_;
     std::unordered_map<u_int32_t, ShinjukuTask*> alive_tasks_;
     std::vector<CpuState> cpu_states_;
 };
