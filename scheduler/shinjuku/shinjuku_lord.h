@@ -1,11 +1,12 @@
 #include <list>
 #include <unordered_map>
+#include <deque>
 #include <cassert>
 #include "lord.h"
 
 const int cpu_num = sysconf(_SC_NPROCESSORS_CONF);
 
-u_int64_t preempt_time_slice = 1000 * 50;
+u_int64_t preempt_time_slice = 1000 * 200;
 
 enum class ShinjukuRunState {
     Queued,
@@ -86,7 +87,7 @@ public:
         std::vector<std::pair<int, cos_shoot_arg>> assigned;
         cpu_set_t assigned_mask;
 	    CPU_ZERO(&assigned_mask);
-        std::vector<int> idle_mask, cos_mask, cfs_mask;
+        std::deque<int> idle_cpu, cos_cpu, cfs_cpu;
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         u_int64_t current_time = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
@@ -101,20 +102,25 @@ public:
             
             if (cpu_states_[cpu].type == ThreadType::IDLE) {
 
-                idle_mask.push_back(cpu);
+                idle_cpu.push_back(cpu);
 
             } else if (cpu_states_[cpu].type == ThreadType::COS) {
 
                 auto task = alive_tasks_[cpu_states_[cpu].pid];
-                assert(task->state == ShinjukuRunState::OnCpu);
+
+                if (task->state != ShinjukuRunState::OnCpu) {
+                    printf("%d: %d\n", task->pid, task->state);
+                    assert(task->state == ShinjukuRunState::OnCpu);
+                }
+               
 
                 if (current_time - task->last_shoot_time >= preempt_time_slice) {
-                    cos_mask.push_back(cpu);
+                    cos_cpu.push_back(cpu);
                 }
 
             } else if (cpu_states_[cpu].type == ThreadType::CFS) {
 
-                cfs_mask.push_back(cpu);
+                cfs_cpu.push_back(cpu);
 
             }
 
@@ -128,15 +134,15 @@ public:
             }
 
             int cpu = -1;
-            if (!idle_mask.empty()) {
-                cpu = idle_mask.back();
-                idle_mask.pop_back();
-            } else if (!cos_mask.empty()) {
-                cpu = cos_mask.back();
-                cos_mask.pop_back();
-            } else if (!cfs_mask.empty()) {
-                cpu = cfs_mask.back();
-                cfs_mask.pop_back();
+            if (!idle_cpu.empty()) {
+                cpu = idle_cpu.front();
+                idle_cpu.pop_front();
+            } else if (!cos_cpu.empty()) {
+                cpu = cos_cpu.front();
+                cos_cpu.pop_front();
+            } else if (!cfs_cpu.empty()) {
+                cpu = cfs_cpu.front();
+                cfs_cpu.pop_front();
             } else {
                 break;
             }
@@ -150,7 +156,7 @@ public:
             // do shoot
             cos_shoot_arg arg{next->pid, 0};
             assigned.push_back(std::make_pair(cpu, arg));
-            LOG(WARNING) << "shoot " << arg.pid << "  at " << cpu;
+            
             CPU_SET(cpu, &assigned_mask);  
 
             next->state = ShinjukuRunState::OnCpu;
@@ -162,7 +168,9 @@ public:
 
             Shinjuku_rq_.dequeue();
         }
-
+        for (int i = 0; i < assigned.size(); i++) {
+            LOG(WARNING) << "shoot " << assigned[i].second.pid << "  at " << assigned[i].first;
+        }
         sa_->commit_shoot_message(assigned);
         shoot_task(sizeof(assigned_mask), &assigned_mask);
 
@@ -171,6 +179,7 @@ public:
 private:
 
     virtual void consume_msg_task_runnable(cos_msg msg) {
+        LOG(INFO) << "task " << msg.pid << " runnable.";
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             return;
@@ -266,6 +275,7 @@ private:
 
     // by cfs
     virtual void consume_msg_task_preempt(cos_msg msg) {
+        LOG(INFO) << "task " << msg.pid << " cfs.";
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
@@ -286,7 +296,7 @@ private:
 
     // by cos
     virtual void consume_msg_task_preempt_cos(cos_msg msg) {
-
+        LOG(INFO) << "task " << msg.pid << " cos.";
         u_int32_t tid = msg.pid;
 
         if (!alive_tasks_.count(tid)) {
@@ -301,8 +311,11 @@ private:
             LOG(ERROR) << "task is null in dead!";
             exit(1);
         }
-
-        assert(task->state == ShinjukuRunState::OnCpu);
+        if (task->state != ShinjukuRunState::OnCpu) {
+            printf("%d: %d\n", task->pid, task->state);
+            assert(task->state == ShinjukuRunState::OnCpu);
+        }
+        
         Shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         assert(cpu_states_[task->cpu_id].type == ThreadType::COS);
