@@ -2,6 +2,9 @@
 #include <unordered_map>
 #include "lord.h"
 
+
+static const int cpu_num = sysconf(_SC_NPROCESSORS_CONF);
+
 enum class FifoRunState {
     Queued,
     OnCpu,
@@ -61,7 +64,7 @@ class FifoLord : public Lord {
 
 public:
     FifoLord(int lord_cpu) : Lord(lord_cpu), fifo_rq_() {
-        for (int i = 0; i < cpu_num_; i ++) {
+        for (int i = 0; i < cpu_num; i ++) {
             cpu_states_[i] = CpuState::IDLE;
         }
     }
@@ -70,7 +73,7 @@ public:
         std::vector<std::pair<int, cos_shoot_arg>> assigned;
         cpu_set_t assigned_mask;
 	    CPU_ZERO(&assigned_mask);
-        for (int cpu = 0; cpu < cpu_num_; cpu ++) {
+        for (int cpu = 0; cpu < cpu_num; cpu ++) {
             if (cpu == lord_cpu_)    continue ;
             if (cpu_states_[cpu] == CpuState::COS) {
                 continue ;

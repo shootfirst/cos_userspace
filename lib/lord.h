@@ -14,8 +14,7 @@ public:
 		LOG(INFO) << "set lord success!";
 
 		lord_cpu_ = lord_cpu;
-		cpu_num_ = sysconf(_SC_NPROCESSORS_CONF);
-		LOG(INFO) << "cpu nums: " << cpu_num_;
+		LOG(INFO) << "lord_cpu: " << lord_cpu;
 
     	mq_ = new MessageQueue;
     	sa_ = new ShootArea;
@@ -48,6 +47,7 @@ public:
 	        	break;
 			case MSG_TASK_COS_PREEMPT:
 				consume_msg_task_preempt_cos(msg);
+				break;
 	        default:
 				LOG(WARNING) << "unknown cos_msg type  " << msg.type << "!";
 	        	break;
@@ -70,7 +70,6 @@ protected:
     virtual void consume_msg_task_preempt_cos(cos_msg msg) = 0;
 
     int lord_cpu_ = -1;
-    int cpu_num_ = -1;
     MessageQueue *mq_ = nullptr;
     ShootArea *sa_ = nullptr;
 };
