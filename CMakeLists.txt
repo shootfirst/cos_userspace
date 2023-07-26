@@ -17,6 +17,8 @@ include_directories(lib kernel) # global include directories
 add_executable(fifo_scheduler scheduler/fifo/fifo_scheduler.cpp scheduler/fifo/fifo_lord.h)
 target_link_libraries(fifo_scheduler glog::glog)
 
+add_executable(shinjuku_scheduler scheduler/shinjuku/shinjuku_scheduler.cpp scheduler/shinjuku/shinjuku_lord.h)
+target_link_libraries(shinjuku_scheduler glog::glog)
 
 add_executable(simple_load workload/simple_load.cpp)
 
