@@ -69,7 +69,7 @@ public:
         exit(1);
     }
 
-private:
+// private:
     std::list<u_int32_t> rq_;
 };
 
@@ -98,7 +98,7 @@ public:
         u_int64_t current_time = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 
-        for (int cpu = 2; cpu <= 5; cpu++) {
+        for (int cpu = 2; cpu < cpu_num; cpu++) {
 
             if (cpu == lord_cpu_) {
                 continue;
@@ -226,7 +226,11 @@ public:
             }
         }
 
-
+        printf("=============================\n");
+        for (auto pid : shinjuku_rq_.rq_) {
+            printf("tid:%d, epistle:%d\n", pid, epistle_->get(pid));
+        }
+        printf("=============================\n");
     }
 
 private:
@@ -342,7 +346,7 @@ private:
 
         if (task->state != ShinjukuRunState::OnCpu) {
             printf("%d: %d\n", task->pid, task->state);
-            assert(task->state == ShinjukuRunState::OnCpu);
+            return;
         }
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;

@@ -210,7 +210,7 @@ struct option {
   uint64_t range_duration = 1000 * 100;  // 100 microseconds
   double throughput = 10000.0;
   double range_query_ratio = 0.0;
-  int experiment_duration = 30;  // 30s
+  int experiment_duration = 10;  // 30s
   int discard_duration = 1;      // 1s
   bool print_range = false;
   bool print_get = false;
@@ -485,6 +485,7 @@ void Worker(int lock_id) {
     epistle->add(tid, EPISTLE_THREAD_IDLE);
     smp_mb();
   }
+  epistle->add(tid, EPISTLE_THREAD_RUNNABLE);
 }
 
 bool generator_lock = false;
@@ -492,7 +493,7 @@ bool generator_lock = false;
 void LoadGenerator() {
   cpu_set_t cpuSet;
   CPU_ZERO(&cpuSet);
-  CPU_SET(6, &cpuSet);
+  CPU_SET(0, &cpuSet);
   sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
   // setpriority(PRIO_PROCESS, gettid(), -20);
 
@@ -837,7 +838,7 @@ int main() {
 
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
-    CPU_SET(6, &cpuSet);
+    CPU_SET(0, &cpuSet);
     int numCpus = sysconf(_SC_NPROCESSORS_CONF) - 1;
 
     auto generator = std::thread(LoadGenerator);
@@ -907,6 +908,9 @@ int main() {
     generator.join();
 
     exit_worker = true;
+    for (auto& t : workers) {
+      epistle->add(t->tid(), EPISTLE_THREAD_RUNNABLE);
+    }
     for (auto& t : workers) t->join();
 
     PrintResults(runtime);
