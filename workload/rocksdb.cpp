@@ -22,8 +22,6 @@
 #include "thread.h"  // NOLINT
 #include "epistle.h"  // NOLINT
 
-#define SCHED_COS 8
-#define SCHED_NORMAL 0
 
 std::string epistle_path = "./epistle";
 Epistle<u_int32_t> *epistle = nullptr;
@@ -225,8 +223,6 @@ struct option {
 std::vector<std::unique_ptr<CosThread>> workers;
 std::map<uint32_t, std::unique_ptr<WorkerWork>> worker_works;
 std::map<uint32_t, std::vector<Request>> requests;
-
-const sched_param param{};
 
 std::chrono::high_resolution_clock::time_point start_time;
 uint64_t request_id = 0;
@@ -438,10 +434,16 @@ inline void Pause() {
 /*=======================EXIT=======================*/
 bool exit_generator = false;
 bool exit_worker = false;
+
+bool worker_lock[100] = {0};
 /*=======================EXIT=======================*/
 
-void Worker() {
+void Worker(int lock_id) {
   int tid = gettid();
+  // notify1
+  worker_lock[lock_id] = true;
+  smp_mb();
+  epistle->add(tid, EPISTLE_THREAD_IDLE);
   LOG(INFO) << "Worker (TID: " << tid << ")";
 
   while (!exit_worker) {
@@ -487,9 +489,22 @@ void Worker() {
   }
 }
 
+bool generator_lock = false;
+
 void LoadGenerator() {
+  cpu_set_t cpuSet;
+  CPU_ZERO(&cpuSet);
+  CPU_SET(0, &cpuSet);
+  sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
+  // setpriority(PRIO_PROCESS, gettid(), -20);
+
+  // wait2
+  while (!generator_lock) {
+    smp_mb();
+    sched_yield();
+  }
+
   LOG(INFO) << "Load generator (TID: " << gettid() << ")";
-  setpriority(PRIO_PROCESS, gettid(), -20);
 
   // Set the time that the experiment started at (after initialization).
   start_time = std::chrono::high_resolution_clock::now();
@@ -536,6 +551,7 @@ void LoadGenerator() {
         assert(epistle->get(tid) == EPISTLE_THREAD_IDLE);
 
         // mark as runnable
+        // printf("mark %d runnable\n", tid);
         epistle->add(tid, EPISTLE_THREAD_RUNNABLE);
         smp_mb();
       } else {
@@ -822,39 +838,31 @@ int main() {
 
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
-    CPU_SET(1, &cpuSet);
+    CPU_SET(0, &cpuSet);
     int numCpus = sysconf(_SC_NPROCESSORS_CONF) - 1;
 
-    auto generator =
-        CosThread(CosThread::KernelSchedulerType::kCfs, LoadGenerator);
-    generator.WaitUntilInitComplete();
+    auto generator = std::thread(LoadGenerator);
     sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
-    sched_setaffinity(generator.tid(), sizeof(cpuSet), &cpuSet);
 
     LOG(INFO) << "create generator";
-
-
-    CPU_ZERO(&cpuSet);
-    for (int cpu = 2; cpu < numCpus; ++cpu) {
-        CPU_SET(cpu, &cpuSet);
-    }
-
-    for (int cpu = 0; cpu < numCpus; ++cpu) {
-        if (CPU_ISSET(cpu, &cpuSet)) {
-            LOG(INFO) << "worker: CPU " << cpu << " is set.";
-        }
-    }
 
     // TODO(xiunianjun): different with ghOSt here:
     // We simply implement the thread pool in the main function.
     for (int i = 0; i < options.num_workers; i++) {
-        workers.emplace_back(
-            new CosThread(CosThread::KernelSchedulerType::kCos, Worker));
+        workers.emplace_back(new CosThread(Worker, i));
     }
+    
+    LOG(INFO) << "create all workers!";
 
+    int wl_i = 0;
     for (auto& t : workers) {
-        t->WaitUntilInitComplete();
+        // wait1
+        while(!worker_lock[wl_i]) {
+          smp_mb();
+          sched_yield();
+        }
 
+        wl_i++;
         worker_works.insert(
             std::make_pair(t->tid(), std::make_unique<WorkerWork>()));
         worker_works[t->tid()]->num_requests = 0;
@@ -875,16 +883,12 @@ int main() {
             requests[t->tid()].emplace_back();
         }
         requests[t->tid()].clear();
-
-        sched_setaffinity(t->tid(), sizeof(cpuSet), &cpuSet);
-        epistle->add(t->tid(), EPISTLE_THREAD_IDLE);
-        // sched_setscheduler(t->tid(), SCHED_NORMAL, &param);
-        sched_setscheduler(t->tid(), SCHED_COS, &param);
-        t->NotifyWork();
     }
 
     LOG(INFO) << "Init complete! Notify generator to work...";
-    generator.NotifyWork();
+    // notify2
+    generator_lock = true;
+    smp_mb();
 
     SetTimer(options.experiment_duration);
 
@@ -900,10 +904,10 @@ int main() {
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now() - start_time)
             .count();
-    generator.Join();
+    generator.join();
 
     exit_worker = true;
-    for (auto& t : workers) t->Join();
+    for (auto& t : workers) t->join();
 
     PrintResults(runtime);
     LOG(INFO) << "==========rocksdb experiments end.==========";

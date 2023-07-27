@@ -98,7 +98,7 @@ public:
         u_int64_t current_time = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 
-        for (int cpu = 0; cpu < cpu_num; cpu++) {
+        for (int cpu = 1; cpu < cpu_num; cpu++) {
 
             if (cpu == lord_cpu_) {
                 continue;
@@ -178,6 +178,7 @@ public:
 
             shinjuku_rq_.dequeue();
         }
+        
         for (int i = 0; i < assigned.size(); i++) {
             LOG(WARNING) << "shoot " << assigned[i].second.pid << "  at " << assigned[i].first;
         }
@@ -231,7 +232,6 @@ public:
 private:
 
     virtual void consume_msg_task_runnable(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " runnable.";
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             return;
@@ -250,6 +250,7 @@ private:
 
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
+        LOG(INFO) << "task " << msg.pid << " runnable.";
     }
 
     virtual void consume_msg_task_blocked(cos_msg msg) {
@@ -275,7 +276,6 @@ private:
     }
 
     virtual void consume_msg_task_new(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " new.";
 
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
@@ -288,11 +288,11 @@ private:
 
         shinjuku_rq_.enqueue(tid);
         new_task->state = ShinjukuRunState::Queued;
+        LOG(INFO) << "task " << msg.pid << " new.";
     }
 
     virtual void consume_msg_task_new_blocked(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " new blocked.";
-
+        
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
             LOG(ERROR) << "same new_thread message, kernel BUGGGGGG!";
@@ -301,11 +301,11 @@ private:
 
         auto new_task = new ShinjukuTask(tid);
         alive_tasks_[tid] = new_task;
+        LOG(INFO) << "task " << msg.pid << " new blocked.";
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " dead.";
-
+        
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task dead before task new, kernel BUGGGGGG!";
@@ -321,13 +321,14 @@ private:
         assert(task->state == ShinjukuRunState::Blocked);
 
         alive_tasks_.erase(tid);
-        // remember to delete
         delete task;
+
+        LOG(INFO) << "task " << msg.pid << " dead.";
     }
 
     // by cfs
     virtual void consume_msg_task_preempt(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " cfs.";
+
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
@@ -344,18 +345,18 @@ private:
         task->state = ShinjukuRunState::Queued;
         cpu_states_[task->cpu_id].type = ThreadType::CFS;
         
+        LOG(INFO) << "task " << msg.pid << " cfs.";
     }
 
     // by cos
     virtual void consume_msg_task_preempt_cos(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " cos.";
+        
         u_int32_t tid = msg.pid;
 
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
             exit(1);
         }
-
 
         auto task = alive_tasks_[tid];
 
@@ -371,7 +372,7 @@ private:
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         assert(cpu_states_[task->cpu_id].type == ThreadType::COS);
-
+        LOG(INFO) << "task " << msg.pid << " cos.";
     }
 
     ShinjukuRq shinjuku_rq_;

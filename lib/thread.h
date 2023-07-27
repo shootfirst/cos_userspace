@@ -1,76 +1,37 @@
-/* Copyright (c) 2022 Meta, Inc */
-#ifndef TOOLS_SCHED_EXT_LIB_COS_THREAD_H_
-#define TOOLS_SCHED_EXT_LIB_COS_THREAD_H_
+#include <functional>
+#include <thread>
+#include <unistd.h>
 
-#include <utility>
-#include <thread>      // NOLINT
-#include <functional>  // for std::function
+#define SCHED_COS 8
 
 class CosThread {
 public:
-	// The kernel scheduling class to run the thread in.
-	enum class KernelSchedulerType {
-		// Linux Completely Fair Scheduler.
-		kCfs,
-		// cos.
-		kCos,
-	};
+    CosThread(std::function<void(int)> work, int arg) {
+        thread_ = std::thread([this, w = std::move(work), arg] {
+            tid_ = gettid();
+            struct sched_param param = {.sched_priority = 0};
+	        sched_setscheduler(tid_, SCHED_COS, &param);
+            std::move(w)(arg);
+        });
+    }
 
-	explicit CosThread(KernelSchedulerType ksched, std::function<void()> work) {
-		work_start_ = false;
-		ksched_ = ksched;
-		thread_ = std::thread([this, w = std::move(work)] {
-			tid_ = gettid();
-			NotifyInitComplete();
+    void join() {
+        thread_.join();
+    }
 
-			// if (ksched_ == KernelSchedulerType::kCos) {
-			WaitUntilWork();
-			// }
+    void joinable() {
+        thread_.joinable();
+    }
 
-			std::move(w)();
-		});
-	}
-	explicit CosThread(const CosThread&) = delete;
-	CosThread& operator=(const CosThread&) = delete;
-	~CosThread() = default;
+    u_int32_t tid() {
+        return tid_;
+    }
 
-	// Joins the thread.
-	void Join() { thread_.join(); }
-
-	void WaitUntilWork() {
-		while (!work_start_) {
-			// sched_yield();
-			sleep(1);
-		}
-	}
-
-	void NotifyWork() { work_start_ = true; }
-
-	void WaitUntilInitComplete() {
-		while (!init_complete_) {
-			sched_yield();
-		}
-	}
-
-	void NotifyInitComplete() { init_complete_ = true; }
-
-	bool Joinable() const { return thread_.joinable(); }
-
-	int tid() { return tid_; }
+    explicit CosThread(const CosThread&) = delete;
+    CosThread& operator=(const CosThread&) = delete;
+    ~CosThread() = default;
 
 private:
-	volatile bool work_start_;
-
-	volatile bool init_complete_;
-
-	// The thread's TID (thread identifier).
-	int tid_;
-
-	// The kernel scheduling class the thread is running in.
-	KernelSchedulerType ksched_;
-
-	// The thread.
-	std::thread thread_;
+    std::thread thread_;
+    u_int32_t tid_;
 };
-
-#endif  // TOOLS_SCHED_EXT_LIB_COS_THREAD_H_

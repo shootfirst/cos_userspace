@@ -4,8 +4,8 @@
 #include <atomic>
 #include <cassert>
 
-#define EPISTLE_THREAD_RUNNABLE 1
-#define EPISTLE_THREAD_IDLE 0
+#define EPISTLE_THREAD_RUNNABLE 0
+#define EPISTLE_THREAD_IDLE 1
 
 #define HASH_MAP_SIZE 4096
 
