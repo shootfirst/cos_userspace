@@ -340,7 +340,10 @@ private:
             exit(1);
         }
 
-        assert(task->state == ShinjukuRunState::OnCpu);
+        if (task->state != ShinjukuRunState::OnCpu) {
+            printf("%d: %d\n", task->pid, task->state);
+            assert(task->state == ShinjukuRunState::OnCpu);
+        }
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         cpu_states_[task->cpu_id].type = ThreadType::CFS;
