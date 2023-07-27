@@ -118,7 +118,7 @@ public:
                 auto task = alive_tasks_[cpu_states_[cpu].pid];
 
                 if (task->state != ShinjukuRunState::OnCpu) {
-                    printf("%d: %d\n", task->pid, task->state);
+                    // printf("%d: %d\n", task->pid, task->state);
                     assert(task->state == ShinjukuRunState::OnCpu);
                 }
                
@@ -131,6 +131,8 @@ public:
 
         }
 
+        ShinjukuRq onqueue_idle;
+
         while (true) {
 
             int tid = shinjuku_rq_.peek();
@@ -139,6 +141,8 @@ public:
             }
 
             if (epistle_->get(tid) == EPISTLE_THREAD_IDLE) {
+                shinjuku_rq_.dequeue();
+                onqueue_idle.enqueue(tid);
                 continue;
             }
 
@@ -179,9 +183,14 @@ public:
             shinjuku_rq_.dequeue();
         }
         
-        for (int i = 0; i < assigned.size(); i++) {
-            LOG(WARNING) << "shoot " << assigned[i].second.pid << "  at " << assigned[i].first;
+
+        while (onqueue_idle.peek() != 0) {
+            shinjuku_rq_.enqueue(onqueue_idle.peek());
+            onqueue_idle.dequeue();
         }
+        // for (int i = 0; i < assigned.size(); i++) {
+        //     LOG(WARNING) << "shoot " << assigned[i].second.pid << "  at " << assigned[i].first;
+        // }
 
         if (assigned.empty()) {
             return;
@@ -226,11 +235,10 @@ public:
             }
         }
 
-        printf("=============================\n");
-        for (auto pid : shinjuku_rq_.rq_) {
-            printf("tid:%d, epistle:%d\n", pid, epistle_->get(pid));
-        }
-        printf("=============================\n");
+        // printf("=============================\n");
+        // for (auto pid : shinjuku_rq_.rq_) {
+        //     printf("tid:%d, epistle:%d ", pid, epistle_->get(pid));
+        // }
     }
 
 private:
@@ -254,7 +262,7 @@ private:
 
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
-        LOG(INFO) << "task " << msg.pid << " runnable.";
+        // LOG(INFO) << "task " << msg.pid << " runnable.";
     }
 
     virtual void consume_msg_task_blocked(cos_msg msg) {
@@ -292,7 +300,7 @@ private:
 
         shinjuku_rq_.enqueue(tid);
         new_task->state = ShinjukuRunState::Queued;
-        LOG(INFO) << "task " << msg.pid << " new.";
+        // LOG(INFO) << "task " << msg.pid << " new.";
     }
 
     virtual void consume_msg_task_new_blocked(cos_msg msg) {
@@ -305,7 +313,7 @@ private:
 
         auto new_task = new ShinjukuTask(tid);
         alive_tasks_[tid] = new_task;
-        LOG(INFO) << "task " << msg.pid << " new blocked.";
+        // LOG(INFO) << "task " << msg.pid << " new blocked.";
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
@@ -327,7 +335,7 @@ private:
         alive_tasks_.erase(tid);
         delete task;
 
-        LOG(INFO) << "task " << msg.pid << " dead.";
+        // LOG(INFO) << "task " << msg.pid << " dead.";
     }
 
     // by cfs
@@ -335,7 +343,7 @@ private:
 
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
-            LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
+            LOG(ERROR) << "task " << tid << " preempt before task new, kernel BUGGGGGG!";
             exit(1);
         }
         auto task = alive_tasks_[tid];
@@ -344,15 +352,16 @@ private:
             exit(1);
         }
 
-        if (task->state != ShinjukuRunState::OnCpu) {
-            printf("%d: %d\n", task->pid, task->state);
+        assert(task->state != ShinjukuRunState::Blocked);
+        if (task->state == ShinjukuRunState::Queued) {
+            // printf("%d: %d\n", task->pid, task->state);
             return;
         }
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         cpu_states_[task->cpu_id].type = ThreadType::CFS;
         
-        LOG(INFO) << "task " << msg.pid << " cfs.";
+        // LOG(INFO) << "task " << msg.pid << " cfs.";
     }
 
     // by cos
@@ -361,7 +370,7 @@ private:
         u_int32_t tid = msg.pid;
 
         if (!alive_tasks_.count(tid)) {
-            LOG(ERROR) << "task preempt before task new, kernel BUGGGGGG!";
+            LOG(ERROR) << "task " << tid << " preempt before task new, kernel BUGGGGGG!";
             exit(1);
         }
 
@@ -371,15 +380,16 @@ private:
             LOG(ERROR) << "task is null in dead!";
             exit(1);
         }
-        if (task->state != ShinjukuRunState::OnCpu) {
-            printf("%d: %d\n", task->pid, task->state);
-            assert(task->state == ShinjukuRunState::OnCpu);
+
+        assert(task->state != ShinjukuRunState::Blocked);
+        if (task->state == ShinjukuRunState::Queued) {
+            // printf("%d: %d\n", task->pid, task->state);
+            return;
         }
-        
         shinjuku_rq_.enqueue(tid);
         task->state = ShinjukuRunState::Queued;
         assert(cpu_states_[task->cpu_id].type == ThreadType::COS);
-        LOG(INFO) << "task " << msg.pid << " cos.";
+        // LOG(INFO) << "task " << msg.pid << " cos.";
     }
 
     ShinjukuRq shinjuku_rq_;

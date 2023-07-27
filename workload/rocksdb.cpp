@@ -208,9 +208,9 @@ struct option {
   int num_workers = 20;
   uint64_t get_duration = 1000 * 100;      // 0.1ms
   uint64_t range_duration = 1000 * 100;  // 100 microseconds
-  double throughput = 10000.0;
+  double throughput = 1000.0;
   double range_query_ratio = 0.0;
-  int experiment_duration = 10;  // 30s
+  int experiment_duration = 5;  // 30s
   int discard_duration = 1;      // 1s
   bool print_range = false;
   bool print_get = false;
@@ -415,18 +415,18 @@ inline void Pause() {
   // ts.tv_sec = 0;
   // ts.tv_nsec = 1000 * 1000; // sleep for 1ms
   // nanosleep(&ts, NULL);
-#ifndef __GNUC__
-#error "GCC is needed for the macros in the `Pause()` function."
-#endif
-#if defined(__x86_64__)
-  asm volatile("pause");
-#elif defined(__aarch64__)
-  asm volatile("yield");
-#elif defined(__powerpc64__)
-  asm volatile("or 27,27,27");
-#else
-  // Do nothing.
-#endif
+// #ifndef __GNUC__
+// #error "GCC is needed for the macros in the `Pause()` function."
+// #endif
+// #if defined(__x86_64__)
+//   asm volatile("pause");
+// #elif defined(__aarch64__)
+//   asm volatile("yield");
+// #elif defined(__powerpc64__)
+//   asm volatile("or 27,27,27");
+// #else
+//   // Do nothing.
+// #endif
 }
 
 /*=======================EXIT=======================*/
@@ -862,6 +862,7 @@ int main() {
           // sched_yield();
           sleep(1);
         }
+        // printf("%d\n", t->tid());
 
         wl_i++;
         worker_works.insert(
