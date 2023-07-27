@@ -18,6 +18,8 @@ public:
 
     	mq_ = new MessageQueue;
     	sa_ = new ShootArea;
+
+		lord_pid_ = gettid();
 	}
 
 
@@ -25,6 +27,10 @@ public:
         cos_msg msg;
         while (!mq_->empty()) {
             msg = mq_->consume_msg();
+
+			if (msg.pid == lord_pid_) {
+				continue;
+			}
 
 			seq_ = msg.seq;
 
@@ -75,4 +81,5 @@ protected:
     MessageQueue *mq_ = nullptr;
     ShootArea *sa_ = nullptr;
 	u_int16_t seq_ = 0;
+	uint32_t lord_pid_;
 };
