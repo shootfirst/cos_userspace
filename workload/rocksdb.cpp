@@ -124,9 +124,7 @@ bool Database::OpenDatabase(const std::filesystem::path& path) {
       rocksdb::NewBlockBasedTableFactory(table_options));
   options.compression = rocksdb::kNoCompression;
   options.OptimizeLevelStyleCompaction();
-  printf("111 %s\n", path.string().c_str());
   rocksdb::Status status = rocksdb::DB::Open(options, path.string(), &db_);
-  printf("111\n");
   auto ok = status.ok();
   return ok;
 }
@@ -494,14 +492,15 @@ bool generator_lock = false;
 void LoadGenerator() {
   cpu_set_t cpuSet;
   CPU_ZERO(&cpuSet);
-  CPU_SET(0, &cpuSet);
+  CPU_SET(6, &cpuSet);
   sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
   // setpriority(PRIO_PROCESS, gettid(), -20);
 
   // wait2
   while (!generator_lock) {
     smp_mb();
-    sched_yield();
+    sleep(1);
+    // sched_yield();
   }
 
   LOG(INFO) << "Load generator (TID: " << gettid() << ")";
@@ -838,7 +837,7 @@ int main() {
 
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
-    CPU_SET(0, &cpuSet);
+    CPU_SET(6, &cpuSet);
     int numCpus = sysconf(_SC_NPROCESSORS_CONF) - 1;
 
     auto generator = std::thread(LoadGenerator);
@@ -859,7 +858,8 @@ int main() {
         // wait1
         while(!worker_lock[wl_i]) {
           smp_mb();
-          sched_yield();
+          // sched_yield();
+          sleep(1);
         }
 
         wl_i++;

@@ -98,7 +98,7 @@ public:
         u_int64_t current_time = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 
-        for (int cpu = 1; cpu < cpu_num; cpu++) {
+        for (int cpu = 2; cpu <= 5; cpu++) {
 
             if (cpu == lord_cpu_) {
                 continue;
@@ -108,6 +108,10 @@ public:
             if (cpu_states_[cpu].type == ThreadType::IDLE) {
 
                 idle_cpu.push_back(cpu);
+
+            } else if (cpu_states_[cpu].type == ThreadType::CFS) {
+
+                cfs_cpu.push_back(cpu);
 
             } else if (cpu_states_[cpu].type == ThreadType::COS) {
 
@@ -122,10 +126,6 @@ public:
                 if (current_time - task->last_shoot_time >= preempt_time_slice || epistle_->get(task->pid) == EPISTLE_THREAD_IDLE) {
                     cos_cpu.push_back(cpu);
                 }
-
-            } else if (cpu_states_[cpu].type == ThreadType::CFS) {
-
-                cfs_cpu.push_back(cpu);
 
             }
 
@@ -146,12 +146,12 @@ public:
             if (!idle_cpu.empty()) {
                 cpu = idle_cpu.front();
                 idle_cpu.pop_front();
-            } else if (!cos_cpu.empty()) {
-                cpu = cos_cpu.front();
-                cos_cpu.pop_front();
             } else if (!cfs_cpu.empty()) {
                 cpu = cfs_cpu.front();
                 cfs_cpu.pop_front();
+            } else if (!cos_cpu.empty()) {
+                cpu = cos_cpu.front();
+                cos_cpu.pop_front();
             } else {
                 break;
             }
