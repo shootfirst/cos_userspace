@@ -9,6 +9,15 @@ project (cos_userspace) # project name
 # )
 # FetchContent_MakeAvailable(glog)
 
+find_path(ROCKSDB_INCLUDE_DIR rocksdb/db.h PATHS)
+include_directories(${ROCKSDB_INCLUDE_DIR})
+
+find_library(ROCKSDB_LIB rocksdb)
+message(STATUS "finding ${ROCKSDB_LIB}")
+
+find_library(LZ4_LIB lz4)
+message(STATUS "finding ${LZ4_LIB}")
+
 find_package (glog 0.6.0 REQUIRED)
 
 # includes
@@ -20,7 +29,11 @@ include_directories(lib kernel) # global include directories
 add_executable(shinjuku_scheduler scheduler/shinjuku/shinjuku_scheduler.cpp scheduler/shinjuku/shinjuku_lord.h)
 target_link_libraries(shinjuku_scheduler glog::glog)
 
-add_executable(simple_load workload/simple_load.cpp)
+add_executable(rocksdb workload/rocksdb.cpp)
+target_link_libraries(rocksdb glog::glog)
+target_link_libraries(rocksdb ${ROCKSDB_LIB} ${LZ4_LIB} -ltbb -lstdc++fs -lrocksdb -lzstd -lz -lsnappy -lbz2)
+
+# add_executable(simple_load workload/simple_load.cpp)
 
 # cmake flags
 # set(CMAKE_BUILD_TYPE "Debug")

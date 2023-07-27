@@ -1,9 +1,11 @@
+#include <fcntl.h>  // for O_RDWR and open
+#include <sys/mman.h>
 #include <iostream>
 #include <atomic>
 #include <cassert>
 
-#define RUNNABLE 1
-#define IDLE 0
+#define EPISTLE_THREAD_RUNNABLE 1
+#define EPISTLE_THREAD_IDLE 0
 
 #define HASH_MAP_SIZE 4096
 
@@ -13,9 +15,10 @@ template <typename T>
 
 class Epistle {
 public:
+	template <typename V>
 	struct Entry {
   		int32_t key;
-  		T value;
+  		V value;
 	};
 
     Epistle(std::string shm_path, bool is_first) : shm_path_(shm_path) {
@@ -31,15 +34,15 @@ public:
         }
 
         void* shd_mem_ =
-            mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+            mmap(NULL, HASH_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
         if (shd_mem_ == MAP_FAILED) {  
             LOG(ERROR) << "mmap epistle fail!";
             exit(1);
         }
 
         if (is_first) {
-            ftruncate(shm_fd, SHM_SIZE);
-            memset(shm, 0, SHM_SIZE);
+            ftruncate(shm_fd, HASH_MAP_SIZE);
+            memset(shd_mem_, 0, HASH_MAP_SIZE);
         }
 
     	capacity_ = HASH_MAP_SIZE / sizeof(Entry<T>);
@@ -48,7 +51,7 @@ public:
 
   	bool add(int32_t key, T value) {
     	assert(key != 0);
-    	for (int idx = hash(key); idx = (idx + 1) % capacity_) {
+    	for (int idx = hash(key); ; idx = (idx + 1) % capacity_) {
       		if (table_[idx].key == 0) {
         		if (!__sync_bool_compare_and_swap(&table_[idx].key, 0, key)) {
           			continue;
@@ -65,7 +68,7 @@ public:
 
   	T get(int32_t key) {
     	assert(key != 0);
-    	for (int idx = hash(key); idx = (idx + 1) % capacity_) {
+    	for (int idx = hash(key); ; idx = (idx + 1) % capacity_) {
       		if (table_[idx].key == 0) {
         		return {};
       		}

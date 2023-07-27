@@ -2,12 +2,13 @@
 #include <unordered_map>
 #include <deque>
 #include <cassert>
+#include "epistle.h"
 #include "lord.h"
 
 const int cpu_num = sysconf(_SC_NPROCESSORS_CONF);
 
 u_int64_t preempt_time_slice = 1000 * 200;
-std::string epistle_path = "./epistle"
+std::string epistle_path = "./epistle";
 
 enum class ShinjukuRunState {
     Queued,
@@ -82,7 +83,7 @@ public:
             cpu_states_[i].pid = 0;
         }
 
-        epistle_ = new Epistle(epistle_path, true);
+        epistle_ = new Epistle<u_int32_t>(epistle_path, true);
     }
 
     virtual void schedule() {
@@ -118,7 +119,7 @@ public:
                 }
                
 
-                if (current_time - task->last_shoot_time >= preempt_time_slice || epistle_.get(task->pid) == IDLE) {
+                if (current_time - task->last_shoot_time >= preempt_time_slice || epistle_->get(task->pid) == EPISTLE_THREAD_IDLE) {
                     cos_cpu.push_back(cpu);
                 }
 
@@ -137,7 +138,7 @@ public:
                 break;
             }
 
-            if (epistle_.get(tid) == IDLE) {
+            if (epistle_->get(tid) == EPISTLE_THREAD_IDLE) {
                 continue;
             }
 
@@ -376,5 +377,5 @@ private:
     ShinjukuRq shinjuku_rq_;
     std::unordered_map<u_int32_t, ShinjukuTask*> alive_tasks_;
     std::vector<CpuState> cpu_states_;
-    Epistle *epistle_ = nullptr;
+    Epistle<u_int32_t> *epistle_ = nullptr;
 };
