@@ -210,7 +210,7 @@ struct option {
   uint64_t range_duration = 1000 * 100;  // 100 microseconds
   double throughput = 10000.0;
   double range_query_ratio = 0.0;
-  int experiment_duration = 5;  // 30s
+  int experiment_duration = 3;  // 30s
   int discard_duration = 1;      // 1s
   bool print_range = false;
   bool print_get = false;
@@ -411,10 +411,11 @@ NetWork network(options.throughput, options.range_query_ratio);
 /*=======================NETWORK=======================*/
 
 inline void Pause() {
-  // struct timespec ts;
-  // ts.tv_sec = 0;
-  // ts.tv_nsec = 1000 * 1000; // sleep for 1ms
-  // nanosleep(&ts, NULL);
+  struct timespec ts;
+  ts.tv_sec = 0;
+  ts.tv_nsec = 1000 * 1000; // sleep for 1ms
+  nanosleep(&ts, NULL);
+  // sleep(1);
 // #ifndef __GNUC__
 // #error "GCC is needed for the macros in the `Pause()` function."
 // #endif
@@ -430,11 +431,16 @@ inline void Pause() {
 }
 
 /*=======================EXIT=======================*/
-bool exit_generator = false;
-bool exit_worker = false;
+volatile bool exit_generator = false;
+volatile bool exit_all = false;
 
 bool worker_lock[100] = {0};
 /*=======================EXIT=======================*/
+void PrintRequest(Request req) {
+  printf("generate: %ld, received: %ld, assigned: %ld, start: %ld, finish: %ld\n",
+          req.request_generated, req.request_received, req.request_assigned,
+          req.request_start, req.request_finished);
+}
 
 void Worker(int lock_id) {
   int tid = gettid();
@@ -444,7 +450,7 @@ void Worker(int lock_id) {
   epistle->add(tid, EPISTLE_THREAD_IDLE);
   LOG(INFO) << "Worker (TID: " << tid << ")";
 
-  while (!exit_worker) {
+  while (!exit_all) {
     // TODO(xiunianjun)
     // Maybe something like "WaitUntilRunnable".
     if (epistle->get(tid) == EPISTLE_THREAD_IDLE) {
@@ -485,17 +491,16 @@ void Worker(int lock_id) {
     epistle->add(tid, EPISTLE_THREAD_IDLE);
     smp_mb();
   }
-  epistle->add(tid, EPISTLE_THREAD_RUNNABLE);
 }
 
-bool generator_lock = false;
+volatile bool generator_lock = false;
 
 void LoadGenerator() {
   cpu_set_t cpuSet;
   CPU_ZERO(&cpuSet);
   CPU_SET(1, &cpuSet);
   sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
-  setpriority(PRIO_PROCESS, gettid(), -5);
+  setpriority(PRIO_PROCESS, gettid(), -20);
 
   // wait2
   while (!generator_lock) {
@@ -511,7 +516,7 @@ void LoadGenerator() {
 
   network.Start();
 
-  while (!exit_generator) {
+  while (!exit_all) {
     for (auto it = workers.begin(); it != workers.end(); it++) {
       int tid = (*it)->tid();
       // TODO(xiunianjun): different with ghOSt here:
@@ -558,6 +563,14 @@ void LoadGenerator() {
         // There is no work waiting in the ingress queue.
         break;
       }
+    }
+  }
+
+  printf("exit here.... mark all runnable...\n");
+  while(!exit_generator) {
+    for (auto it = workers.begin(); it != workers.end(); it++) {
+      int tid = (*it)->tid();
+      epistle->add(tid, EPISTLE_THREAD_RUNNABLE);
     }
   }
 }
@@ -836,19 +849,20 @@ int main() {
 
     epistle = new Epistle<u_int32_t>(epistle_path, false);
 
+    auto generator = std::thread(LoadGenerator);
+
+    LOG(INFO) << "create generator";
+
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
     CPU_SET(0, &cpuSet);
-
-    auto generator = std::thread(LoadGenerator);
     sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
-
-    LOG(INFO) << "create generator";
 
     // TODO(xiunianjun): different with ghOSt here:
     // We simply implement the thread pool in the main function.
     for (int i = 0; i < options.num_workers; i++) {
         workers.emplace_back(new CosThread(Worker, i));
+        LOG(INFO) << "create worker " << i;
     }
     
     LOG(INFO) << "create all workers!";
@@ -898,7 +912,8 @@ int main() {
     }
 
     // Terminal
-    exit_generator = true;
+    exit_all = true;
+    smp_mb();
 
     // Same with ghOSt here: calculate runtime before join all threads.
     const uint64_t runtime =
@@ -906,13 +921,16 @@ int main() {
             std::chrono::high_resolution_clock::now() - start_time)
             .count();
     PrintResults(runtime);
-    generator.join();
-
-    exit_worker = true;
+    printf("join all worker...\n");
     for (auto& t : workers) {
-      epistle->add(t->tid(), EPISTLE_THREAD_RUNNABLE);
+      t->join();
+      printf("join %d success\n", t->tid());
     }
-    for (auto& t : workers) t->join();
+
+    exit_generator = true;
+    smp_mb();
+    printf("join generator...\n");
+    generator.join();
 
     PrintResults(runtime);
     LOG(INFO) << "==========rocksdb experiments end.==========";
