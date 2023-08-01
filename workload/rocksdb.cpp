@@ -206,9 +206,9 @@ struct WorkerWork {
 struct option {
   int batch = 12;
   int num_workers = 20;
-  uint64_t get_duration = 1000 * 100;      // 0.1ms
+  uint64_t get_duration = 1000 * 10;      // 0.1ms
   uint64_t range_duration = 1000 * 100;  // 100 microseconds
-  double throughput = 1000.0;
+  double throughput = 10000.0;
   double range_query_ratio = 0.0;
   int experiment_duration = 5;  // 30s
   int discard_duration = 1;      // 1s
@@ -493,9 +493,9 @@ bool generator_lock = false;
 void LoadGenerator() {
   cpu_set_t cpuSet;
   CPU_ZERO(&cpuSet);
-  CPU_SET(0, &cpuSet);
+  CPU_SET(1, &cpuSet);
   sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
-  // setpriority(PRIO_PROCESS, gettid(), -20);
+  setpriority(PRIO_PROCESS, gettid(), -5);
 
   // wait2
   while (!generator_lock) {
@@ -839,7 +839,6 @@ int main() {
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
     CPU_SET(0, &cpuSet);
-    int numCpus = sysconf(_SC_NPROCESSORS_CONF) - 1;
 
     auto generator = std::thread(LoadGenerator);
     sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
@@ -906,6 +905,7 @@ int main() {
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now() - start_time)
             .count();
+    PrintResults(runtime);
     generator.join();
 
     exit_worker = true;

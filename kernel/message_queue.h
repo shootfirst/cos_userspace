@@ -13,9 +13,9 @@ enum {
 #define _MQ_DATA_SIZE 511
 
 struct cos_msg {
-	u_int32_t pid;
+	u_int16_t pid;
 	u_int16_t type;
-	u_int16_t seq;
+	u_int32_t seq;
 };
 
 struct cos_message_queue {

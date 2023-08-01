@@ -7,7 +7,7 @@
 
 const int cpu_num = sysconf(_SC_NPROCESSORS_CONF);
 
-u_int64_t preempt_time_slice = 1000 * 200;
+u_int64_t preempt_time_slice = 1000 * 400;
 std::string epistle_path = "./epistle";
 
 enum class ShinjukuRunState {
@@ -98,7 +98,7 @@ public:
         u_int64_t current_time = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 
-        for (int cpu = 2; cpu < cpu_num; cpu++) {
+        for (int cpu = 3; cpu < cpu_num; cpu++) {
 
             if (cpu == lord_cpu_) {
                 continue;
@@ -300,7 +300,7 @@ private:
 
         shinjuku_rq_.enqueue(tid);
         new_task->state = ShinjukuRunState::Queued;
-        // LOG(INFO) << "task " << msg.pid << " new.";
+        LOG(INFO) << "task " << msg.pid << " new.";
     }
 
     virtual void consume_msg_task_new_blocked(cos_msg msg) {
@@ -313,7 +313,7 @@ private:
 
         auto new_task = new ShinjukuTask(tid);
         alive_tasks_[tid] = new_task;
-        // LOG(INFO) << "task " << msg.pid << " new blocked.";
+        LOG(INFO) << "task " << msg.pid << " new blocked.";
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
@@ -335,7 +335,7 @@ private:
         alive_tasks_.erase(tid);
         delete task;
 
-        // LOG(INFO) << "task " << msg.pid << " dead.";
+        LOG(INFO) << "task " << msg.pid << " dead.";
     }
 
     // by cfs
