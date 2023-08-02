@@ -167,6 +167,7 @@ public:
             ShinjukuTask* next = alive_tasks_[tid];
 
             // do shoot
+            printf("shoot %d\n", tid);
             cos_shoot_arg arg{next->pid, 0};
             assigned.push_back(std::make_pair(cpu, arg));
             

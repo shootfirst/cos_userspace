@@ -1,24 +1,27 @@
 #include <cos_cgroup.h>
+#include <thread.h>
+#include <vector>
 
 int main() {
-    CosCgroup coscg = new CosCgroup;
-    coscg->adjust_rate(80);
+    auto coscg = new CosCgroup;
+    coscg->adjust_rate(5);
 
     std::vector<CosThread*> load_thread_vec(0);
-    for (int i = 0; i < 20; i++) {
+    // for (int i = 0; i < 20; i++) {
         load_thread_vec.push_back(
             new CosThread([&] {
-                coscg->add_thread(gettid());
-                for (int i = 0; i < 1000; i++) {
-                    struct timespec ts;
-                    ts.tv_sec = 0;
-                    ts.tv_nsec = 1000 *100;  // sleep for 100us
-                    nanosleep(&ts, NULL);
+                int tid = gettid();
+                coscg->add_thread(tid);
+                for (int i = 0; i < 100000; i++) {
+                    // struct timespec ts;
+                    // ts.tv_sec = 0;
+                    // ts.tv_nsec = 1000 *100;  // sleep for 100us
+                    // nanosleep(&ts, NULL);
                     printf("thread %d %d\n", tid, sched_getscheduler(tid));
                 }
             })
         );
-    }
+    // }
     
     
     for(auto& t : load_thread_vec)  t->join();

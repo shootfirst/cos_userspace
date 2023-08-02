@@ -6,6 +6,16 @@
 
 class CosThread {
 public:
+    CosThread(std::function<void()> work) {
+        thread_ = std::thread([this, w = std::move(work)] {
+            tid_ = gettid();
+            struct sched_param param = {.sched_priority = 0};
+	        sched_setscheduler(tid_, SCHED_COS, &param);
+            // sleep(1);
+            std::move(w)();
+        });
+    }
+
     CosThread(std::function<void(int)> work, int arg) {
         thread_ = std::thread([this, w = std::move(work), arg] {
             tid_ = gettid();

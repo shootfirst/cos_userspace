@@ -35,6 +35,8 @@ target_link_libraries(rocksdb ${ROCKSDB_LIB} ${LZ4_LIB} -ltbb -lstdc++fs -lrocks
 
 # add_executable(simple_load workload/simple_load.cpp)
 
+add_executable(simple_coscg_load workload/simple_coscg_load.cpp)
+
 # cmake flags
 # set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")

@@ -1,7 +1,9 @@
 #ifndef COS_H
 #define COS_H
 
-#include <sys/syscall.h> 
+// #include <sys/syscall.h> 
+#include <unistd.h> 
+#include <sched.h>
 
 #define SYSCALL_SET_LORD        452
 #define SYSCALL_CREATE_MQ       453
