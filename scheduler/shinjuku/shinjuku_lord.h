@@ -330,7 +330,12 @@ private:
             exit(1);
         }
 
-        assert(task->state == ShinjukuRunState::Blocked);
+        if (task->state == ShinjukuRunState::Queued) {
+            shinjuku_rq_.remove_from_rq(tid);
+        } else if (task->state == ShinjukuRunState::OnCpu) {
+            cpu_states_[task->cpu_id].type = ThreadType::IDLE;
+            cpu_states_[task->cpu_id].pid = 0;
+        }
 
         alive_tasks_.erase(tid);
         delete task;
