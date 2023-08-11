@@ -80,6 +80,6 @@ protected:
     int lord_cpu_ = -1;
     MessageQueue *mq_ = nullptr;
     ShootArea *sa_ = nullptr;
-	u_int16_t seq_ = 0;
+	u_int32_t seq_ = 0;
 	uint32_t lord_pid_;
 };
