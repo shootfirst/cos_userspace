@@ -12,7 +12,7 @@ void init_glog() {
 int main(int argc, char* argv[]) {
     init_glog();
     
-    FifoLord *lord = new FifoLord(4);
+    FifoLord *lord = new FifoLord(2);
 
     LOG(INFO) << "init cos success!";
     while (true) {

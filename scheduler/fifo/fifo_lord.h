@@ -1,5 +1,7 @@
 #include <list>
 #include <unordered_map>
+#include <deque>
+#include <cassert>
 #include "lord.h"
 
 
@@ -64,12 +66,14 @@ class FifoLord : public Lord {
 
 public:
     FifoLord(int lord_cpu) : Lord(lord_cpu), fifo_rq_() {
+        cpu_states_.reserve(cpu_num);
         for (int i = 0; i < cpu_num; i ++) {
             cpu_states_[i] = CpuState::IDLE;
         }
     }
 
     virtual void schedule() {
+        std::vector<std::pair<int, CpuState>> old_cpu_states;
         std::vector<std::pair<int, cos_shoot_arg>> assigned;
         cpu_set_t assigned_mask;
 	    CPU_ZERO(&assigned_mask);
@@ -89,9 +93,7 @@ public:
             FifoTask* next = alive_tasks_[tid];
 
             // do shoot
-            cos_shoot_arg arg;
-            arg.pid = next->pid;
-            arg.info = 0;
+            cos_shoot_arg arg{next->pid, 0};
             assigned.push_back(std::make_pair(cpu, arg));
             LOG(WARNING) << "shoot " << arg.pid << "  at " << cpu;
             CPU_SET(cpu, &assigned_mask);  
@@ -99,11 +101,51 @@ public:
             next->state = FifoRunState::OnCpu;
             next->cpu_id = cpu;
             cpu_states_[cpu] = CpuState::COS;
+            old_cpu_states.push_back(std::make_pair(cpu, cpu_states_[cpu]));
 
             fifo_rq_.dequeue();
         }
-        sa_->commit_shoot_message(assigned);
-        shoot_task(sizeof(assigned_mask), &assigned_mask);
+
+        if (assigned.empty()) {
+            return;
+        }
+        
+        sa_->commit_shoot_message(assigned, seq_);
+        int shoot_err = shoot_task(sizeof(assigned_mask), &assigned_mask);
+
+        if (shoot_err) {
+            LOG(INFO) << "shoot failed!";
+
+            // revert the task states
+            for (auto arg : assigned) {
+                fifo_rq_.enqueue(arg.second.pid);
+                FifoTask* task = alive_tasks_[arg.second.pid];
+                task->state = FifoRunState::Queued;
+            }
+
+            // revert the cpu states
+            for (auto cs : old_cpu_states) {
+                cpu_states_[cs.first] = cs.second;
+            }
+
+        } else {
+            std::vector<std::pair<int, int>> fail = sa_->check_shoot_state(cpu_num);
+
+            for(auto f : fail) {
+                // revert the task states
+                fifo_rq_.enqueue(f.second);
+                FifoTask* task = alive_tasks_[f.second];
+                task->state = FifoRunState::Queued;
+
+                // revert the cpu states
+                for (auto cs : old_cpu_states) {
+                    if (cs.first == f.first) {
+                        cpu_states_[f.first] = cs.second;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
 private:
@@ -149,7 +191,6 @@ private:
     }
 
     virtual void consume_msg_task_new(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " new.";
 
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
@@ -162,11 +203,11 @@ private:
 
         fifo_rq_.enqueue(tid);
         new_task->state = FifoRunState::Queued;
+        LOG(INFO) << "task " << msg.pid << " new.";
     }
 
     virtual void consume_msg_task_new_blocked(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " new blocked.";
-
+        
         u_int32_t tid = msg.pid;
         if (alive_tasks_.count(tid)) {
             LOG(ERROR) << "same new_thread message, kernel BUGGGGGG!";
@@ -175,11 +216,11 @@ private:
 
         auto new_task = new FifoTask(tid);
         alive_tasks_[tid] = new_task;
+        LOG(INFO) << "task " << msg.pid << " new blocked.";
     }
 
     virtual void consume_msg_task_dead(cos_msg msg) {
-        LOG(INFO) << "task " << msg.pid << " dead.";
-
+        
         u_int32_t tid = msg.pid;
         if (!alive_tasks_.count(tid)) {
             LOG(ERROR) << "task dead before task new, kernel BUGGGGGG!";
@@ -195,13 +236,15 @@ private:
         if(task->state == FifoRunState::Queued) {
             fifo_rq_.remove_from_rq(tid);
         } else if(task->state == FifoRunState::OnCpu) {
-            // update cpu state
+            cpu_states_[task->cpu_id] = CpuState::IDLE;
         }
 
         alive_tasks_.erase(tid);
-        // remember to delete
         delete task;
+
+        LOG(INFO) << "task " << msg.pid << " dead.";
     }
+
 
     // by cos
     virtual void consume_msg_task_preempt_cos(cos_msg msg) {
@@ -216,13 +259,15 @@ private:
             exit(1);
         }
 
-        if(task->state == FifoRunState::Queued) {
-            LOG(WARNING) << "task is preempted with queued state!";
-        } else if(task->state == FifoRunState::OnCpu) {
-            fifo_rq_.enqueue(tid);
-            task->state = FifoRunState::Queued;
-            cpu_states_[task->cpu_id] = CpuState::COS;
+        assert(task->state != FifoRunState::Blocked);
+        if (task->state == FifoRunState::Queued) {
+            // printf("%d: %d\n", task->pid, task->state);
+            return;
         }
+        fifo_rq_.enqueue(tid);
+        task->state = FifoRunState::Queued;
+        assert(cpu_states_[task->cpu_id] == CpuState::COS);
+        // LOG(INFO) << "task " << msg.pid << " cos.";
     }
 
     // by cfs
@@ -238,16 +283,19 @@ private:
             exit(1);
         }
 
-        if(task->state == FifoRunState::Queued) {
-            LOG(WARNING) << "task is preempted with queued state!";
-        } else if(task->state == FifoRunState::OnCpu) {
-            fifo_rq_.enqueue(tid);
-            task->state = FifoRunState::Queued;
-            cpu_states_[task->cpu_id] = CpuState::NOCOS;
+        assert(task->state != FifoRunState::Blocked);
+        if (task->state == FifoRunState::Queued) {
+            // printf("%d: %d\n", task->pid, task->state);
+            return;
         }
+        fifo_rq_.enqueue(tid);
+        task->state = FifoRunState::Queued;
+        cpu_states_[task->cpu_id] = CpuState::NOCOS;
+        
+        LOG(INFO) << "task " << msg.pid << " cfs.";
     }
 
     FifoRq fifo_rq_;
     std::unordered_map<u_int32_t, FifoTask*> alive_tasks_;
-    CpuState cpu_states_[8];
+    std::vector<CpuState> cpu_states_;
 };
