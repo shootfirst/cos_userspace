@@ -205,10 +205,10 @@ struct WorkerWork {
 
 struct option {
   int batch = 12;
-  int num_workers = 20;
+  int num_workers = 100;
   uint64_t get_duration = 1000 * 10;      // 0.1ms
   uint64_t range_duration = 1000 * 100;  // 100 microseconds
-  double throughput = 10000.0;
+  double throughput = 250000.0;
   double range_query_ratio = 0.0;
   int experiment_duration = 3;  // 30s
   int discard_duration = 1;      // 1s
@@ -857,6 +857,7 @@ int main() {
     CPU_ZERO(&cpuSet);
     CPU_SET(0, &cpuSet);
     sched_setaffinity(gettid(), sizeof(cpuSet), &cpuSet);
+    setpriority(PRIO_PROCESS, gettid(), -10);
 
     // TODO(xiunianjun): different with ghOSt here:
     // We simply implement the thread pool in the main function.
