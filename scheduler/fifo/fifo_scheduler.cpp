@@ -5,8 +5,8 @@
 void init_glog() {
     // Initialize Google’s logging library.
     google::InitGoogleLogging("fifo scheduler");
-    FLAGS_logtostderr = true;
-    FLAGS_colorlogtostderr = true;
+    // FLAGS_logtostderr = true;
+    // FLAGS_colorlogtostderr = true;
 }
 
 int main(int argc, char* argv[]) {

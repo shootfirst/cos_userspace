@@ -45,11 +45,8 @@ add_executable(rocksdb workload/rocksdb.cpp)
 target_link_libraries(rocksdb glog::glog)
 target_link_libraries(rocksdb ${ROCKSDB_LIB} ${LZ4_LIB} -ltbb -lstdc++fs -lrocksdb -lzstd -lz -lsnappy -lbz2)
 
-# add_executable(simple_load workload/simple_load.cpp)
-
-add_executable(latency_load workload/latency_load.cpp)
-add_executable(cgroup_load workload/cgroup_load.cpp)
-add_executable(simple_coscg_load workload/simple_coscg_load.cpp)
+add_executable(task_delegation_latency_load workload/task_delegation_latency_load.cpp)
+add_executable(cgroup_latency_load workload/cgroup_latency_load.cpp)
 
 # for tests
 enable_testing()

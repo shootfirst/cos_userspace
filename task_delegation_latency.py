@@ -12,7 +12,7 @@ def get_time(filename):
 client_time_name = "client_time"
 agent_time_name = "agent_time" 
 
-result_name = "latency_result"
+result_name = "task_delegation_latency_result"
 
 sum = 0
 max = 0
@@ -20,7 +20,7 @@ min = 0
 
 skip = 0
 for i in range(0, 50):
-    subprocess.run("sudo build/latency_load >> client_time", shell=True)
+    subprocess.run("sudo build/task_delegation_latency_load >> client_time", shell=True)
     result = get_time(client_time_name) - get_time(agent_time_name)
     with open(result_name, 'a') as file2:
         file2.write(str(result) + '\n')

@@ -14,7 +14,7 @@ client_time_name = "cgroup_time"
 sum = 0
 
 for i in range(0, 20):
-    subprocess.run("sudo build/cgroup_load 2>> cgroup_time", shell=True)
+    subprocess.run("sudo build/cgroup_latency_load 2>> cgroup_time", shell=True)
     result = get_client_time(client_time_name)
     sum += result
 

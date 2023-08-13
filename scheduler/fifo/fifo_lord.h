@@ -92,7 +92,6 @@ public:
             }
             FifoTask* next = alive_tasks_[tid];
 
-            // do shoot
             cos_shoot_arg arg{next->pid, 0};
             assigned.push_back(std::make_pair(cpu, arg));
             LOG(WARNING) << "shoot " << arg.pid << "  at " << cpu;
@@ -111,6 +110,10 @@ public:
         }
         
         sa_->commit_shoot_message(assigned, seq_);
+        struct timespec ts2;
+        clock_gettime(CLOCK_MONOTONIC, &ts2);
+        uint64_t tss = ts2.tv_sec * 1000000000ULL + ts2.tv_nsec;
+        fprintf(stderr, "%ld\n", tss);
         int shoot_err = shoot_task(sizeof(assigned_mask), &assigned_mask);
 
         if (shoot_err) {
